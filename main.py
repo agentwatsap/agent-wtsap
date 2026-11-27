@@ -21,6 +21,7 @@ PRODUCTS = [
 import os
 import threading
 
+import time
 import requests
 from flask import Flask, request, jsonify
 
@@ -96,16 +97,28 @@ def gemini_reply(user_id, text):
         "contents": contents,
         "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2000},
     }
-    resp = requests.post(GEMINI_URL, json=payload, timeout=30)
-    try:
-        answer = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except Exception:
-        print("GEMINI_ERROR", resp.status_code, resp.text[:300], flush=True)
+    answer = None
+    for attempt in range(1, 4):
+        try:
+            resp = requests.post(GEMINI_URL, json=payload, timeout=60)
+            answer = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            break
+        except Exception as e:
+            code = getattr(locals().get("resp"), "status_code", "")
+            body = getattr(locals().get("resp"), "text", "")[:300]
+            print("GEMINI_ERROR attempt", attempt, code, repr(e)[:200], body, flush=True)
+            resp = None
+            if attempt < 3:
+                time.sleep(3 * attempt)
+    if not answer:
         return None
     history.append({"role": "user", "parts": [{"text": text}]})
     history.append({"role": "model", "parts": [{"text": answer}]})
     del history[:-HISTORY_LIMIT]
     return answer
+
+
+FALLBACK_TEXT = "المساعد مشغول شوية دابا، عاود صيفط ليا الرسالة من بعد دقيقة."
 
 
 def send_whatsapp(to, text):
@@ -132,9 +145,17 @@ def handle_message(msg):
         text = None
     if not user_id or not text:
         return
-    answer = gemini_reply(user_id, text)
-    if answer:
+    try:
+        answer = gemini_reply(user_id, text)
+    except Exception as e:
+        print("GEMINI_ERROR unexpected", repr(e)[:200], flush=True)
+        answer = None
+    if not answer:
+        answer = FALLBACK_TEXT
+    try:
         send_whatsapp(user_id, answer)
+    except Exception as e:
+        print("WA_SEND_ERROR", repr(e)[:200], flush=True)
 
 
 @app.route("/webhook", methods=["GET"])
@@ -174,3 +195,4 @@ def home():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
     app.run(host="0.0.0.0", port=port)
+
