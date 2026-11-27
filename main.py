@@ -77,12 +77,13 @@ def gemini_reply(user_id, text):
     payload = {
         "system_instruction": {"parts": [{"text": build_prompt()}]},
         "contents": contents,
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 400},
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2000},
     }
     resp = requests.post(GEMINI_URL, json=payload, timeout=30)
     try:
         answer = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception:
+        print("GEMINI_ERROR", resp.status_code, resp.text[:300], flush=True)
         return None
     history.append({"role": "user", "parts": [{"text": text}]})
     history.append({"role": "model", "parts": [{"text": answer}]})
@@ -91,14 +92,16 @@ def gemini_reply(user_id, text):
 
 
 def send_whatsapp(to, text):
-    url = GRAPH_URL + "/" + PHONE_NUMBER_ID + "/messages"; headers = {"Authorization": "Bearer " + WHATSAPP_TOKEN}
+    url = GRAPH_URL + "/" + PHONE_NUMBER_ID + "/messages"
+    headers = {"Authorization": "Bearer " + WHATSAPP_TOKEN}
     payload = {
         "messaging_product": "whatsapp",
         "to": to,
         "type": "text",
         "text": {"body": text},
     }
-    requests.post(url, headers=headers, json=payload, timeout=30)
+    r = requests.post(url, headers=headers, json=payload, timeout=30)
+    print("WA_SEND", r.status_code, r.text[:300], flush=True)
 
 
 def handle_message(msg):
@@ -130,6 +133,7 @@ def verify():
 @app.route("/webhook", methods=["POST"])
 def incoming():
     data = request.get_json(silent=True) or {}
+    print("WEBHOOK_IN", str(data)[:200], flush=True)
     try:
         for entry in data.get("entry", []):
             for change in entry.get("changes", []):
