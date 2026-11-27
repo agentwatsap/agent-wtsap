@@ -29,6 +29,7 @@ WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+WABA_ID = os.environ.get("WABA_ID", "2607346956425879")
 
 GRAPH_URL = "https://graph.facebook.com/v22.0"
 GEMINI_URL = (
@@ -36,6 +37,22 @@ GEMINI_URL = (
     + GEMINI_MODEL + ":generateContent?key=" + GEMINI_API_KEY
 )
 
+
+
+def subscribe_waba():
+    if not WHATSAPP_TOKEN or not WABA_ID:
+        print("SUBSCRIBE_WABA skipped: missing WHATSAPP_TOKEN or WABA_ID", flush=True)
+        return
+    url = "https://graph.facebook.com/v21.0/" + WABA_ID + "/subscribed_apps"
+    headers = {"Authorization": "Bearer " + WHATSAPP_TOKEN}
+    try:
+        r = requests.post(url, headers=headers, timeout=30)
+        print("SUBSCRIBE_WABA", r.status_code, r.text[:300], flush=True)
+    except Exception as e:
+        print("SUBSCRIBE_WABA error", repr(e), flush=True)
+
+
+subscribe_waba()
 
 def build_prompt():
     catalog = ""
